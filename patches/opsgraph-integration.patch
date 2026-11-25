@@ -1,0 +1,267 @@
+diff --git a/AdaptixClient/CMakeLists.txt b/AdaptixClient/CMakeLists.txt
+index 98fc312..85c9871 100644
+--- a/AdaptixClient/CMakeLists.txt
++++ b/AdaptixClient/CMakeLists.txt
+@@ -135,6 +135,8 @@ SET( HEADERS
+         Headers/UI/Graph/GraphScene.h
+         Headers/UI/Graph/LayoutTreeLeft.h
+         Headers/UI/Graph/LayoutTreeTop.h
++        Headers/UI/OpsGraph/OperationGraphTab.h
++        Headers/UI/OpsGraph/GraphCanvas.h
+         Headers/UI/Widgets/ScreenshotsWidget.h
+         Headers/UI/Dialogs/DialogTunnel.h
+         Headers/Client/TunnelEndpoint.h
+@@ -220,6 +222,8 @@ add_executable(AdaptixClient
+         Source/Client/ConsoleTheme.cpp
+         Source/UI/Widgets/TunnelsWidget.cpp
+         Source/UI/Graph/SessionsGraph.cpp
++        Source/UI/OpsGraph/OperationGraphTab.cpp
++        Source/UI/OpsGraph/GraphCanvas.cpp
+         Source/UI/Graph/GraphItem.cpp
+         Source/UI/Graph/GraphItemLink.cpp
+         Source/UI/Graph/GraphScene.cpp
+diff --git a/AdaptixClient/Headers/UI/Widgets/AdaptixWidget.h b/AdaptixClient/Headers/UI/Widgets/AdaptixWidget.h
+index 3c38a88..9b167ab 100644
+--- a/AdaptixClient/Headers/UI/Widgets/AdaptixWidget.h
++++ b/AdaptixClient/Headers/UI/Widgets/AdaptixWidget.h
+@@ -21,6 +21,7 @@ class LastTickWorker;
+ class WebSocketWorker;
+ class SessionsTableWidget;
+ class SessionsGraph;
++class OperationGraphTab;
+ class AxConsoleWidget;
+ class LogsWidget;
+ class ChatWidget;
+@@ -72,6 +73,7 @@ Q_OBJECT
+     QPushButton*    chatButton        = nullptr;
+     QPushButton*    sessionsButton    = nullptr;
+     QPushButton*    graphButton       = nullptr;
++    QPushButton*    opsGraphButton    = nullptr;
+     QPushButton*    tasksButton       = nullptr;
+     QPushButton*    targetsButton     = nullptr;
+     QPushButton*    tunnelButton      = nullptr;
+@@ -134,6 +136,7 @@ public:
+     ListenersWidget*     ListenersDock     = nullptr;
+     SessionsTableWidget* SessionsTableDock = nullptr;
+     SessionsGraph*       SessionsGraphDock = nullptr;
++    OperationGraphTab*  OperationGraphDock = nullptr;
+     TunnelsWidget*       TunnelsDock       = nullptr;
+     DownloadsWidget*     DownloadsDock     = nullptr;
+     ScreenshotsWidget*   ScreenshotsDock   = nullptr;
+@@ -242,6 +245,7 @@ public Q_SLOTS:
+     void OnSynced();
+     void SetSessionsTableUI() const;
+     void SetGraphUI() const;
++    void SetOperationGraphUI() const;
+     void SetTasksUI() const;
+     void LoadAxConsoleUI() const;
+     void LoadLogsUI() const;
+diff --git a/AdaptixClient/Source/UI/Widgets/AdaptixWidget.cpp b/AdaptixClient/Source/UI/Widgets/AdaptixWidget.cpp
+index d0f8f7e..f6e4229 100644
+--- a/AdaptixClient/Source/UI/Widgets/AdaptixWidget.cpp
++++ b/AdaptixClient/Source/UI/Widgets/AdaptixWidget.cpp
+@@ -22,6 +22,7 @@
+ #include <UI/Widgets/TasksWidget.h>
+ #include <UI/Widgets/TunnelsWidget.h>
+ #include <UI/Graph/SessionsGraph.h>
++#include <UI/OpsGraph/OperationGraphTab.h>
+ #include <UI/Dialogs/DialogSyncPacket.h>
+ #include <UI/Dialogs/DialogTunnel.h>
+ #include <Client/Requestor.h>
+@@ -56,6 +57,7 @@ AdaptixWidget::AdaptixWidget(AuthProfile* authProfile, QThread* channelThread, W
+     ListenersDock     = new ListenersWidget(this);
+     SessionsTableDock = new SessionsTableWidget(this);
+     SessionsGraphDock = new SessionsGraph(this);
++    OperationGraphDock = new OperationGraphTab(profile, this);
+     TasksDock         = new TasksWidget(this);
+     TunnelsDock       = new TunnelsWidget(this);
+     DownloadsDock     = new DownloadsWidget(this);
+@@ -65,6 +67,8 @@ AdaptixWidget::AdaptixWidget(AuthProfile* authProfile, QThread* channelThread, W
+ 
+     dockTop->toggleAction()->trigger();
+     this->PlaceDock( dockTop, SessionsTableDock->dock() );
++    this->PlaceDock( dockTop, OperationGraphDock->dock() );
++    OperationGraphDock->loadInitialState();
+     dockBottom->toggleAction()->trigger();
+     this->PlaceDock( dockBottom, LogsDock->dock() );
+ 
+@@ -80,6 +84,7 @@ AdaptixWidget::AdaptixWidget(AuthProfile* authProfile, QThread* channelThread, W
+     connect( listenersButton, &QPushButton::clicked, this, &AdaptixWidget::LoadListenersUI);
+     connect( sessionsButton,  &QPushButton::clicked, this, &AdaptixWidget::SetSessionsTableUI);
+     connect( graphButton,     &QPushButton::clicked, this, &AdaptixWidget::SetGraphUI);
++    connect( opsGraphButton,  &QPushButton::clicked, this, &AdaptixWidget::SetOperationGraphUI);
+     connect( tasksButton,     &QPushButton::clicked, this, &AdaptixWidget::SetTasksUI);
+     connect( tunnelButton,    &QPushButton::clicked, this, &AdaptixWidget::LoadTunnelsUI);
+     connect( downloadsButton, &QPushButton::clicked, this, &AdaptixWidget::LoadDownloadsUI);
+@@ -280,6 +285,11 @@ void AdaptixWidget::createUI()
+     graphButton->setFixedSize(37, 28);
+     graphButton->setToolTip("Session graph");
+ 
++    opsGraphButton = new QPushButton( QIcon(":/icons/graph"), "", this );
++    opsGraphButton->setIconSize( QSize( 24,24 ));
++    opsGraphButton->setFixedSize(37, 28);
++    opsGraphButton->setToolTip("Operation Graph");
++
+     tasksButton = new QPushButton(QIcon(":/icons/job"), "", this );
+     tasksButton->setIconSize(QSize(24, 24 ));
+     tasksButton->setFixedSize(37, 28);
+@@ -378,6 +388,7 @@ void AdaptixWidget::createUI()
+     topHLayout->addWidget(line_1);
+     topHLayout->addWidget(sessionsButton);
+     topHLayout->addWidget(graphButton);
++    topHLayout->addWidget(opsGraphButton);
+     topHLayout->addWidget(tasksButton);
+     topHLayout->addWidget(line_2);
+     topHLayout->addWidget(chatButton);
+@@ -524,6 +535,7 @@ void AdaptixWidget::Close()
+     delete ListenersDock;
+     delete SessionsTableDock;
+     delete SessionsGraphDock;
++    delete OperationGraphDock;
+     delete TasksDock;
+     delete TunnelsDock;
+     delete DownloadsDock;
+@@ -1254,6 +1266,12 @@ void AdaptixWidget::SetSessionsTableUI() const { this->PlaceDock(dockTop, Sessio
+ 
+ void AdaptixWidget::SetGraphUI() const { this->PlaceDock(dockTop, SessionsGraphDock->dock() ); }
+ 
++void AdaptixWidget::SetOperationGraphUI() const
++{
++    this->PlaceDock(dockTop, OperationGraphDock->dock());
++    OperationGraphDock->loadInitialState();
++}
++
+ void AdaptixWidget::SetTasksUI() const { this->PlaceDock(dockTop, TasksDock->dockTasks() ); }
+ 
+ void AdaptixWidget::LoadAxConsoleUI() const { this->PlaceDock(dockBottom, AxConsoleDock->dock() ); }
+diff --git a/AdaptixServer/core/connector/connector.go b/AdaptixServer/core/connector/connector.go
+index 4dd2915..05e2db9 100644
+--- a/AdaptixServer/core/connector/connector.go
++++ b/AdaptixServer/core/connector/connector.go
+@@ -1,10 +1,12 @@
+ package connector
+ 
+ import (
++	"AdaptixServer/core/opsgraph"
+ 	"AdaptixServer/core/profile"
+ 	"AdaptixServer/core/utils/krypt"
+ 	"AdaptixServer/core/utils/logs"
+ 	"AdaptixServer/core/utils/token"
++	"context"
+ 	"crypto/tls"
+ 	"errors"
+ 	"fmt"
+@@ -123,6 +125,14 @@ type Teamserver interface {
+ 	TsTunnelConnectionResume(AgentId string, channelId int, ioDirect bool)
+ 	TsTunnelConnectionData(channelId int, data []byte)
+ 
++	TsOpsGraphState(ctx context.Context) (opsgraph.State, error)
++	TsOpsGraphDeltaSince(ctx context.Context, cursor int64) (opsgraph.Delta, error)
++	TsOpsGraphSearch(ctx context.Context, query string, limit int) ([]opsgraph.Node, error)
++	TsOpsGraphNode(ctx context.Context, id string) (opsgraph.Node, []opsgraph.Evidence, error)
++	TsOpsGraphEdgeEvidence(ctx context.Context, id string) ([]opsgraph.Evidence, error)
++	TsOpsGraphClear(ctx context.Context) error
++	TsOpsGraphRebuildFromTasks(ctx context.Context, maxTasks int) (int, error)
++
+ 	TsServiceLoad(configPath string) error
+ 	TsServiceUnload(serviceName string) error
+ 	TsServiceCall(serviceName string, operator string, function string, args string)
+@@ -334,6 +344,14 @@ func NewTsConnector(ts Teamserver, tsProfile profile.TsProfile, httpServer profi
+ 	connector.apiGroup = api_group
+ 	{
+ 		api_group.POST("/sync", connector.tcSync)
++
++		api_group.GET("/opsgraph/state", connector.TcOpsGraphState)
++		api_group.GET("/opsgraph/delta", connector.TcOpsGraphDelta)
++		api_group.GET("/opsgraph/search", connector.TcOpsGraphSearch)
++		api_group.GET("/opsgraph/node/:id", connector.TcOpsGraphNode)
++		api_group.GET("/opsgraph/edge/:id/evidence", connector.TcOpsGraphEdgeEvidence)
++		api_group.POST("/opsgraph/clear", connector.TcOpsGraphClear)
++		api_group.POST("/opsgraph/rebuild", connector.TcOpsGraphRebuild)
+ 		api_group.POST("/subscribe", connector.tcSubscribe)
+ 		api_group.POST("/otp/generate", connector.tcOTP_Generate)
+ 
+diff --git a/AdaptixServer/core/database/db_tasks.go b/AdaptixServer/core/database/db_tasks.go
+index 0bdae8b..452993c 100644
+--- a/AdaptixServer/core/database/db_tasks.go
++++ b/AdaptixServer/core/database/db_tasks.go
+@@ -197,3 +197,51 @@ func (dbms *DBMS) DbTasksCount(agentId string) int {
+ 	}
+ 	return count
+ }
++
++func (dbms *DBMS) DbTasksCompletedAll(limit int, offset int) ([]adaptix.TaskData, error) {
++	if !dbms.DatabaseExists() {
++		return nil, errors.New("database does not exist")
++	}
++
++	if limit <= 0 {
++		limit = 500
++	}
++
++	selectQuery := `SELECT TaskId, AgentId, TaskType, Client, User, Computer, StartDate, FinishDate, CommandLine, MessageType, Message, ClearText, Completed
++		FROM Tasks
++		WHERE Completed = 1
++		ORDER BY StartDate DESC
++		LIMIT ? OFFSET ?;`
++
++	rows, err := dbms.database.Query(selectQuery, limit, offset)
++	if err != nil {
++		return nil, err
++	}
++	defer rows.Close()
++
++	tasks := make([]adaptix.TaskData, 0, limit)
++	for rows.Next() {
++		var taskData adaptix.TaskData
++		err = rows.Scan(
++			&taskData.TaskId,
++			&taskData.AgentId,
++			&taskData.Type,
++			&taskData.Client,
++			&taskData.User,
++			&taskData.Computer,
++			&taskData.StartDate,
++			&taskData.FinishDate,
++			&taskData.CommandLine,
++			&taskData.MessageType,
++			&taskData.Message,
++			&taskData.ClearText,
++			&taskData.Completed,
++		)
++		if err != nil {
++			continue
++		}
++		tasks = append(tasks, taskData)
++	}
++
++	return tasks, nil
++}
+diff --git a/AdaptixServer/core/server/mgr_task.go b/AdaptixServer/core/server/mgr_task.go
+index c82abb4..577641b 100644
+--- a/AdaptixServer/core/server/mgr_task.go
++++ b/AdaptixServer/core/server/mgr_task.go
+@@ -101,10 +101,15 @@ func (tm *TaskManager) syncTaskUpdate(agentId string, agent *Agent, taskData *ad
+ 
+ 		_ = tm.ts.DBMS.DbConsoleInsert(agentId, packet_console)
+ 	}
++
++	if taskData.Completed {
++		tm.ts.TsOpsGraphIngestTaskData(*taskData)
++	}
+ }
+ 
+ func (tm *TaskManager) completeTask(agent *Agent, taskData *adaptix.TaskData) {
+ 	_ = tm.ts.DBMS.DbTaskInsert(*taskData)
++	tm.ts.TsOpsGraphIngestTaskData(*taskData)
+ 
+ 	// --- POST HOOK ---
+ 	postEvent := &eventing.EventDataTaskComplete{
+@@ -205,6 +210,7 @@ func (tm *TaskManager) Update(agentId string, updateData adaptix.TaskData) {
+ 	}
+ 
+ 	handler.Update(tm, agent, &task, &updateData)
++	tm.ts.TsOpsGraphIngestTaskData(task)
+ }
+ 
+ func (tm *TaskManager) PostHook(hookData adaptix.TaskData, jobIndex int) error {
