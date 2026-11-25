@@ -1,0 +1,41 @@
+# Build artifacts
+build/
+*.o
+*.o.d
+*.a
+*.so
+dist/
+
+# Qt
+*_autogen/
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+Makefile
+
+# Backups
+*.bak
+*.bak.*
+*.swp
+*~
+._*
+
+# Runtime
+*.db
+*.db-journal
+*.log
+/tmp/
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# Python (helper patches if any)
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db

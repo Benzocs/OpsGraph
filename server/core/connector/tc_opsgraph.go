@@ -1,34 +1,111 @@
 package connector
 
-// This is a placement skeleton. Wire these handlers using the same router/auth style
-// used by existing tc_agents.go, tc_tasks.go, tc_creds.go, and tc_targets.go.
+import (
+	"net/http"
+	"strconv"
 
-/*
-func (tc *TeamserverConnector) TcOpsGraphState(w http.ResponseWriter, r *http.Request) {
-    state, err := tc.Teamserver.OpsGraph.State(r.Context())
-    if err != nil { writeError(w, err); return }
-    writeJSON(w, state)
+	"github.com/gin-gonic/gin"
+)
+
+func (connector *TsConnector) TcOpsGraphState(c *gin.Context) {
+	state, err := connector.teamserver.TsOpsGraphState(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "state": state})
 }
 
-func (tc *TeamserverConnector) TcOpsGraphDelta(w http.ResponseWriter, r *http.Request) {
-    cursor := parseInt64(r.URL.Query().Get("since"))
-    delta, err := tc.Teamserver.OpsGraph.DeltaSince(r.Context(), cursor)
-    if err != nil { writeError(w, err); return }
-    writeJSON(w, delta)
+func (connector *TsConnector) TcOpsGraphDelta(c *gin.Context) {
+	cursor := int64(0)
+	if raw := c.Query("since"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "invalid since cursor"})
+			return
+		}
+		cursor = parsed
+	}
+
+	delta, err := connector.teamserver.TsOpsGraphDeltaSince(c.Request.Context(), cursor)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "delta": delta})
 }
 
-func (tc *TeamserverConnector) TcOpsGraphSearch(w http.ResponseWriter, r *http.Request) {
-    q := r.URL.Query().Get("q")
-    nodes, err := tc.Teamserver.OpsGraph.Search(r.Context(), q, 50)
-    if err != nil { writeError(w, err); return }
-    writeJSON(w, nodes)
+func (connector *TsConnector) TcOpsGraphSearch(c *gin.Context) {
+	query := c.Query("q")
+	limit := 50
+
+	if raw := c.Query("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "invalid limit"})
+			return
+		}
+		limit = parsed
+	}
+
+	nodes, err := connector.teamserver.TsOpsGraphSearch(c.Request.Context(), query, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "nodes": nodes})
 }
 
-func (tc *TeamserverConnector) TcOpsGraphPath(w http.ResponseWriter, r *http.Request) {
-    var req opsgraph.PathRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil { writeError(w, err); return }
-    result, err := tc.Teamserver.OpsGraph.Path(r.Context(), req)
-    if err != nil { writeError(w, err); return }
-    writeJSON(w, result)
+func (connector *TsConnector) TcOpsGraphNode(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "missing node id"})
+		return
+	}
+
+	node, evidence, err := connector.teamserver.TsOpsGraphNode(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "node": node, "evidence": evidence})
 }
-*/
+
+func (connector *TsConnector) TcOpsGraphEdgeEvidence(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "missing edge id"})
+		return
+	}
+
+	evidence, err := connector.teamserver.TsOpsGraphEdgeEvidence(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "evidence": evidence})
+}
+
+func (connector *TsConnector) TcOpsGraphClear(c *gin.Context) {
+	if err := connector.teamserver.TsOpsGraphClear(c.Request.Context()); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (connector *TsConnector) TcOpsGraphRebuild(c *gin.Context) {
+	processed, err := connector.teamserver.TsOpsGraphRebuildFromTasks(c.Request.Context(), 5000)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "processed": processed})
+}

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"opsgraph/server/core/opsgraph"
+	"AdaptixServer/core/opsgraph"
 )
 
 type OpsGraphStore struct {
